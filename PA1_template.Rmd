@@ -1,20 +1,106 @@
-# Reproducible Research: Peer Assessment 1
+Assignment 1 - Reproducible Research
+=====================================
 
-
-## Loading and preprocessing the data
-
-
-
-## What is mean total number of steps taken per day?
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
 
 
 
-## What is the average daily activity pattern?
+<b>Loading and preprocessing the data</b>  
+```{r}
+data <- read.csv("activity.csv",header=T,sep=",")
+data <- transform(data,date=as.Date(date,"%Y-%m-%d"))
+```
+
+<b>What is mean total number of steps taken per day?</b>  
+```{r, results='asis'}
+library(plyr)
+library(ggplot2)
+library(xtable)
+sumStepsData <- ddply(data,.(date),summarize,sumSteps=sum(steps,na.rm=T))
+qplot(sumSteps, data=sumStepsData, geom="histogram")
+meanStepsData <- ddply(data,.(date),summarize,meanSteps=mean(steps,na.rm=T))
+medianStepsData <- ddply(data,.(date),summarize,medianSteps=median(steps,na.rm=T))
+m1 <- xtable(meanStepsData,type="html")
+m2 <- xtable(medianStepsData,type="html")
+print(m1,type="html")
+print(m2,type="html")
+```
+
+<b> What is the average daily activity pattern? </b>  
+1.Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r}
+avgStepsInt <- ddply(data,.(interval),summarize,avgSteps=mean(steps,na.rm=T))
+p <- ggplot(avgStepsInt,aes(x=avgStepsInt$interval,y=avgStepsInt$avgSteps))
+p+geom_line()
+```
+
+2.Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps
+```{r}
+avgStepsInt[avgStepsInt$avgSteps==max(avgStepsInt$avgSteps),]
+```
+
+<b>Imputing missing values</b>  
+
+1.Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r}
+sum(is.na(data$steps))
+```
 
 
+2.Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.  
+This strategy includes replacing NA with the average 5 min available data from other days  
+```{r}
+avgStepsInt <- ddply(data,.(interval),summarize,avgSteps=mean(steps,na.rm=T))
+for (i in 1:dim(data)[[1]])
+ {
+   if(is.na(data$steps[i]))
+   {
+     data$steps[i] = avgStepsInt$avgSteps[avgStepsInt$interval==data$interval[i]]
+   }
+ }
+```
 
-## Imputing missing values
 
+3.Create a new dataset that is equal to the original dataset but with the missing data filled in.
 
+```{r}
+newData <- data
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+4.Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+```{r}
+sumStepsNewData <- ddply(newData,.(date),summarize,sumSteps=sum(steps,na.rm=T))
+qplot(sumSteps, data=sumStepsNewData, geom="histogram")
+meanStepsNewData <- ddply(newData,.(date),summarize,meanSteps=mean(steps,na.rm=T))
+medianStepsNewData <- ddply(newData,.(date),summarize,medianSteps=median(steps,na.rm=T))
+identical(sumStepsData,sumStepsNewData)
+identical(meanStepsData,meanStepsNewData)
+identical(medianStepsData,medianStepsNewData)
+```
+
+Plot sum of steps with the original and modified data for exploratory analysis
+```{r}
+p1 <- 
+    ggplot(sumStepsData, aes(x=date, y=sumSteps)) +
+    geom_line() +
+    ggtitle("Sum of steps with original data")
+
+# Second plot
+p2 <- 
+   ggplot(sumStepsNewData, aes(x=date, y=sumSteps)) +
+    geom_line() +
+    ggtitle("Sum of steps with new data")
+p1
+p2
+```
+
+<b>Are there differences in activity patterns between weekdays and weekends?</b>  
+
+```{r}
+newData$weekday <- ifelse(weekdays(newData$date)=="Saturday" | weekdays(newData$date)=="Sunday","weekend","weekday")
+newData$weekday <- factor(newData$weekday,levels=c("weekday","weekend"),labels=c("weekday","weekend"))
+p <- 
+   ggplot(newData, aes(x=interval, y=steps, color="blue")) +
+    geom_line() + stat_smooth() +
+    ggtitle("Sum of steps with new data")
+p + facet_grid(weekday ~ ., scales = "free_y")
